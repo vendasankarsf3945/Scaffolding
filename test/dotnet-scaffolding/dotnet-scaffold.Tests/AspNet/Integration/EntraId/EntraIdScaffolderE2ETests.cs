@@ -221,7 +221,7 @@ public class EntraIdScaffolderE2ETests
         // 2. RegisterAppStep - Registers or updates Azure AD application (uses msidentity CLI)
         // 3. AddClientSecretStep - Adds client secret (ensures msidentity is installed)
         // 4. DetectBlazorWasmStep - Detects if project is Blazor WASM
-        // 5. UpdateAppSettingsStep - Updates appsettings.json
+        // 5. UpdateAppSettingsStep - Updates appsettings.Development.json
         // 6. UpdateAppAuthorizationStep - Updates authorization settings
         // 7. EntraAddPackagesStep - Adds required NuGet packages
         // 8. EntraBlazorWasmAddPackagesStep - Adds Blazor WASM specific packages

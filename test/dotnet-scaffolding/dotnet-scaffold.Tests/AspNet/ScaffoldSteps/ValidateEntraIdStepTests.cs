@@ -449,6 +449,151 @@ public class ValidateEntraIdStepTests
         Assert.False(step.UseExistingApplication);
     }
 
+    /// <summary>
+    /// Test for Issue #3850: Domain property is allowed when creating new registration
+    /// Verifies that ValidateEntraIdStep no longer rejects Domain properties when useExistingApplication=false.
+    /// This fix allows configurations with existing Domain properties (e.g., B2C configs) to proceed with new registration.
+    /// </summary>
+    [Theory]
+    [InlineData("""{"AzureAd":{"Domain":"contoso.onmicrosoft.com"}}""")]
+    [InlineData("""{"AzureAd":{"Domain":"contoso.com","ClientId":"old-client"}}""")]
+    [InlineData("""{"azuread":{"domain":"contoso.onmicrosoft.com"}}""")]
+    [InlineData("""{"AZUREAD":{"DOMAIN":"b2c.onmicrosoft.com"}}""")]
+    public void DevelopmentSettingsPreflight_AllowsDomainWhenCreatingNewRegistration(string settings)
+    {
+        // Arrange: Settings with Domain property but no conflicting managed values
+        string projectDirectory = Path.Combine("test", "project");
+        string projectPath = Path.Combine(projectDirectory, "TestProject.csproj");
+        string devSettingsPath = Path.Combine(projectDirectory, "appsettings.Development.json");
+        
+        _mockFileSystem.Setup(fs => fs.FileExists(devSettingsPath)).Returns(true);
+        _mockFileSystem.Setup(fs => fs.ReadAllText(devSettingsPath)).Returns(settings);
+
+        var logger = new TestLogger();
+        var step = new ValidateEntraIdStep(_mockFileSystem.Object, logger, _testTelemetryService)
+        {
+            Username = "devuser",
+            TenantId = "tenant-id",
+            Application = null  // Creating new registration, not using existing app
+        };
+
+        // Act
+        bool result = step.ValidateDevelopmentSettingsPreflight(projectPath, useExistingApplication: false, overwrite: false);
+
+        // Assert: Should succeed even though Domain property exists
+        Assert.True(result);
+        Assert.Empty(logger.Errors);
+    }
+
+    /// <summary>
+    /// Test for Issue #3850: Domain property with matching managed values still conflicts
+    /// Verifies that actual conflicts with managed values (ClientId, TenantId, etc.) are still detected
+    /// even after removing the blanket Domain rejection.
+    /// </summary>
+    [Theory]
+    [InlineData("""{"AzureAd":{"ClientId":"different-client"}}""", "ClientId", false)]
+    [InlineData("""{"AzureAd":{"TenantId":"different-tenant"}}""", "TenantId", false)]
+    [InlineData("""{"AzureAd":{"Instance":"https://other-instance/"}}""", "Instance", false)]
+    [InlineData("""{"AzureAd":{"CallbackPath":"/different-path"}}""", "CallbackPath", false)]
+    [InlineData("""{"AzureAd":{"Domain":"contoso.onmicrosoft.com","ClientId":"client-id"}}""", "ClientId", false)]
+    [InlineData("""{"AzureAd":{"Domain":"contoso.onmicrosoft.com","Instance":"https://other/"}}""", "Instance", false)]
+    public void DevelopmentSettingsPreflight_StillDetectsConflictingManagedValues(
+        string settings, string expectedConflict, bool overwrite)
+    {
+        // Arrange: Settings with conflicting managed values
+        string projectDirectory = Path.Combine("test", "project");
+        string projectPath = Path.Combine(projectDirectory, "TestProject.csproj");
+        string devSettingsPath = Path.Combine(projectDirectory, "appsettings.Development.json");
+        
+        _mockFileSystem.Setup(fs => fs.FileExists(devSettingsPath)).Returns(true);
+        _mockFileSystem.Setup(fs => fs.ReadAllText(devSettingsPath)).Returns(settings);
+
+        var logger = new TestLogger();
+        var step = new ValidateEntraIdStep(_mockFileSystem.Object, logger, _testTelemetryService)
+        {
+            Username = "devuser",
+            TenantId = "tenant-id",
+            Application = null  // Creating new registration
+        };
+
+        // Act
+        bool result = step.ValidateDevelopmentSettingsPreflight(projectPath, useExistingApplication: false, overwrite: overwrite);
+
+        // Assert: Should fail because managed values conflict
+        Assert.False(result);
+        Assert.Single(logger.Errors);
+        Assert.Contains(expectedConflict, logger.Errors[0]);
+    }
+
+    /// <summary>
+    /// Test for Issue #3850: Domain with null/empty value is allowed
+    /// Verifies that Domain properties with null or empty values don't cause false-positive conflicts.
+    /// </summary>
+    [Theory]
+    [InlineData("""{"AzureAd":{"Domain":null}}""")]
+    [InlineData("""{"AzureAd":{"Domain":""}}""")]
+    [InlineData("""{"AzureAd":{"Domain":null,"ClientId":"client-id"}}""")]
+    [InlineData("""{"azuread":{"domain":""}}""")]
+    public void DevelopmentSettingsPreflight_AllowsEmptyOrNullDomain(string settings)
+    {
+        // Arrange: Settings with empty/null Domain (placeholder)
+        string projectDirectory = Path.Combine("test", "project");
+        string projectPath = Path.Combine(projectDirectory, "TestProject.csproj");
+        string devSettingsPath = Path.Combine(projectDirectory, "appsettings.Development.json");
+        
+        _mockFileSystem.Setup(fs => fs.FileExists(devSettingsPath)).Returns(true);
+        _mockFileSystem.Setup(fs => fs.ReadAllText(devSettingsPath)).Returns(settings);
+
+        var logger = new TestLogger();
+        var step = new ValidateEntraIdStep(_mockFileSystem.Object, logger, _testTelemetryService)
+        {
+            Username = "devuser",
+            TenantId = "tenant-id",
+            Application = null
+        };
+
+        // Act
+        bool result = step.ValidateDevelopmentSettingsPreflight(projectPath, useExistingApplication: false, overwrite: false);
+
+        // Assert: Should succeed; empty/null Domain is not a real conflict
+        Assert.True(result);
+        Assert.Empty(logger.Errors);
+    }
+
+    /// <summary>
+    /// Test for Issue #3850: Case-insensitive Domain detection still works
+    /// Verifies that Domain properties with case variations are properly detected.
+    /// </summary>
+    [Theory]
+    [InlineData("""{"azuread":{"domain":"b2c-domain.onmicrosoft.com"}}""")]
+    [InlineData("""{"AZUREAD":{"DOMAIN":"b2c-domain.onmicrosoft.com"}}""")]
+    [InlineData("""{"AzureAd":{"domain":"b2c-domain.onmicrosoft.com"}}""")]
+    public void DevelopmentSettingsPreflight_HandlesCaseInsensitiveDomain(string settings)
+    {
+        // Arrange: Settings with case-insensitive Domain property
+        string projectDirectory = Path.Combine("test", "project");
+        string projectPath = Path.Combine(projectDirectory, "TestProject.csproj");
+        string devSettingsPath = Path.Combine(projectDirectory, "appsettings.Development.json");
+        
+        _mockFileSystem.Setup(fs => fs.FileExists(devSettingsPath)).Returns(true);
+        _mockFileSystem.Setup(fs => fs.ReadAllText(devSettingsPath)).Returns(settings);
+
+        var logger = new TestLogger();
+        var step = new ValidateEntraIdStep(_mockFileSystem.Object, logger, _testTelemetryService)
+        {
+            Username = "devuser",
+            TenantId = "tenant-id",
+            Application = null
+        };
+
+        // Act
+        bool result = step.ValidateDevelopmentSettingsPreflight(projectPath, useExistingApplication: false, overwrite: false);
+
+        // Assert: Should succeed; Domain alone doesn't cause rejection
+        Assert.True(result);
+        Assert.Empty(logger.Errors);
+    }
+
     private sealed class TestLogger : ILogger<ValidateEntraIdStep>
     {
         public List<string> Errors { get; } = new();

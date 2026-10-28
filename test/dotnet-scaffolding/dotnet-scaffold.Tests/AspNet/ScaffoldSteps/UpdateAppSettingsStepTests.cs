@@ -926,6 +926,241 @@ public class UpdateAppSettingsStepTests
         Assert.Equal(expectedDomain, configuration["Domain"]?.ToString());
     }
 
+    /// <summary>
+    /// Test for Issue #3850: Split case-insensitive JSON sections
+    /// Verifies that configurations with split AzureAd sections (e.g., {"AzureAd":{...}, "azuread":{...}})
+    /// are properly merged and normalized.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_MergesSplitCaseInsensitiveAzureAdSections()
+    {
+        // Arrange: Configuration with split AzureAd sections
+        string settings = """
+            {
+              "AzureAd": {
+                "ClientId": "client-id-from-uppercase"
+              },
+              "azuread": {
+                "TenantId": "tenant-id-from-lowercase"
+              },
+              "Logging": { "LogLevel": { "Default": "Information" } }
+            }
+            """;
+        
+        _mockFileSystem.Setup(fs => fs.DirectoryExists(_projectDirectory)).Returns(true);
+        _mockFileSystem.Setup(fs => fs.FileExists(_devSettingsPath)).Returns(true);
+        _mockFileSystem.Setup(fs => fs.ReadAllText(_devSettingsPath)).Returns(settings);
+
+        string? writtenContent = null;
+        _mockFileSystem.Setup(fs => fs.WriteAllText(_devSettingsPath, It.IsAny<string>()))
+            .Callback<string, string>((_, content) => writtenContent = content);
+
+        var step = new UpdateAppSettingsStep(
+            NullLogger<UpdateAppSettingsStep>.Instance,
+            _mockFileSystem.Object,
+            Mock.Of<ITelemetryService>())
+        {
+            ProjectPath = _projectPath,
+            Username = "devuser",
+            TenantId = "new-tenant-id",
+            ClientId = "new-client-id",
+            Overwrite = true
+        };
+
+        // Act
+        bool result = await step.ExecuteAsync(_context, CancellationToken.None);
+
+        // Assert: Both sections merged into canonical "AzureAd"
+        Assert.True(result);
+        Assert.NotNull(writtenContent);
+        
+        using var configuration = LoadConfiguration(writtenContent);
+        Assert.Equal("new-client-id", configuration["AzureAd:ClientId"]);
+        Assert.Equal("new-tenant-id", configuration["AzureAd:TenantId"]);
+        Assert.Equal("Information", configuration["Logging:LogLevel:Default"]);
+
+        // Verify normalized JSON has only canonical "AzureAd" key
+        JsonObject json = Assert.IsType<JsonObject>(JsonNode.Parse(writtenContent));
+        Assert.True(json.ContainsKey("AzureAd"));
+        Assert.False(json.ContainsKey("azuread"));
+        Assert.False(json.ContainsKey("AZUREAD"));
+    }
+
+    /// <summary>
+    /// Test for Issue #3850: Case-insensitive flat keys with split sections
+    /// Verifies that case-insensitive flat keys are properly normalized when split sections exist.
+    /// </summary>
+    [Theory]
+    [InlineData("AzureAd:ClientId", "azuread:tenantid")]
+    [InlineData("azuread:clientid", "AZUREAD:TENANTID")]
+    [InlineData("AZUREAD:CLIENTID", "azuread:tenantid")]
+    public async Task ExecuteAsync_NormalizesCaseInsensitiveFlatKeysWithSplitSections(
+        string clientIdKey, string tenantIdKey)
+    {
+        // Arrange: Split flat keys with case variations
+        string settings = $$"""
+            {
+              "{{clientIdKey}}": "old-client-id",
+              "{{tenantIdKey}}": "old-tenant-id",
+              "Logging": { "LogLevel": { "Default": "Information" } }
+            }
+            """;
+        
+        _mockFileSystem.Setup(fs => fs.DirectoryExists(_projectDirectory)).Returns(true);
+        _mockFileSystem.Setup(fs => fs.FileExists(_devSettingsPath)).Returns(true);
+        _mockFileSystem.Setup(fs => fs.ReadAllText(_devSettingsPath)).Returns(settings);
+
+        string? writtenContent = null;
+        _mockFileSystem.Setup(fs => fs.WriteAllText(_devSettingsPath, It.IsAny<string>()))
+            .Callback<string, string>((_, content) => writtenContent = content);
+
+        var step = new UpdateAppSettingsStep(
+            NullLogger<UpdateAppSettingsStep>.Instance,
+            _mockFileSystem.Object,
+            Mock.Of<ITelemetryService>())
+        {
+            ProjectPath = _projectPath,
+            Username = "devuser",
+            TenantId = "new-tenant-id",
+            ClientId = "new-client-id",
+            Overwrite = true
+        };
+
+        // Act
+        bool result = await step.ExecuteAsync(_context, CancellationToken.None);
+
+        // Assert: Flat keys properly consolidated into nested structure
+        Assert.True(result);
+        Assert.NotNull(writtenContent);
+        
+        using var configuration = LoadConfiguration(writtenContent);
+        Assert.Equal("new-client-id", configuration["AzureAd:ClientId"]);
+        Assert.Equal("new-tenant-id", configuration["AzureAd:TenantId"]);
+
+        // Verify flat keys are normalized
+        JsonObject json = Assert.IsType<JsonObject>(JsonNode.Parse(writtenContent));
+        Assert.True(json.ContainsKey("AzureAd"));
+        Assert.False(json.ContainsKey(clientIdKey));
+        Assert.False(json.ContainsKey(tenantIdKey));
+    }
+
+    /// <summary>
+    /// Test for Issue #3850: Mixed nested and flat case-insensitive keys
+    /// Verifies correct handling when both nested and flat AzureAd configurations exist with varying case.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_NormalizesMixedNestedAndFlatCaseInsensitiveKeys()
+    {
+        // Arrange: Mixed nested and flat keys with case variations
+        string settings = """
+            {
+              "azuread": {
+                "ClientId": "client-from-nested"
+              },
+              "AZUREAD:TENANTID": "tenant-from-flat",
+              "AzureAd:SignedOutCallbackPath": "/custom-signout",
+              "Logging": { "LogLevel": { "Default": "Information" } }
+            }
+            """;
+        
+        _mockFileSystem.Setup(fs => fs.DirectoryExists(_projectDirectory)).Returns(true);
+        _mockFileSystem.Setup(fs => fs.FileExists(_devSettingsPath)).Returns(true);
+        _mockFileSystem.Setup(fs => fs.ReadAllText(_devSettingsPath)).Returns(settings);
+
+        string? writtenContent = null;
+        _mockFileSystem.Setup(fs => fs.WriteAllText(_devSettingsPath, It.IsAny<string>()))
+            .Callback<string, string>((_, content) => writtenContent = content);
+
+        var step = new UpdateAppSettingsStep(
+            NullLogger<UpdateAppSettingsStep>.Instance,
+            _mockFileSystem.Object,
+            Mock.Of<ITelemetryService>())
+        {
+            ProjectPath = _projectPath,
+            Username = "devuser",
+            TenantId = "new-tenant-id",
+            ClientId = "new-client-id",
+            Overwrite = true
+        };
+
+        // Act
+        bool result = await step.ExecuteAsync(_context, CancellationToken.None);
+
+        // Assert: All variations merged into canonical nested structure
+        Assert.True(result);
+        Assert.NotNull(writtenContent);
+        
+        using var configuration = LoadConfiguration(writtenContent);
+        Assert.Equal("new-client-id", configuration["AzureAd:ClientId"]);
+        Assert.Equal("new-tenant-id", configuration["AzureAd:TenantId"]);
+        Assert.Equal("/custom-signout", configuration["AzureAd:SignedOutCallbackPath"]);
+
+        // Verify canonical structure
+        JsonObject json = Assert.IsType<JsonObject>(JsonNode.Parse(writtenContent));
+        Assert.True(json.ContainsKey("AzureAd"));
+        JsonObject azureAd = Assert.IsType<JsonObject>(json["AzureAd"]);
+        Assert.True(azureAd.ContainsKey("ClientId"));
+        Assert.True(azureAd.ContainsKey("TenantId"));
+        Assert.False(json.ContainsKey("azuread"));
+        Assert.False(json.ContainsKey("AZUREAD:TENANTID"));
+    }
+
+    /// <summary>
+    /// Test for Issue #3850: Preserves existing values from split sections
+    /// Verifies that when merging split sections, all existing values are preserved.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_PreservesAllValuesWhenMergingSplitSections()
+    {
+        // Arrange: Split sections with different values to preserve
+        string settings = """
+            {
+              "AzureAd": {
+                "Instance": "https://login.microsoftonline.com/",
+                "ClientId": "existing-client"
+              },
+              "azuread": {
+                "SignedOutCallbackPath": "/custom-signout",
+                "ExtraProperty": "should-be-preserved"
+              }
+            }
+            """;
+        
+        _mockFileSystem.Setup(fs => fs.DirectoryExists(_projectDirectory)).Returns(true);
+        _mockFileSystem.Setup(fs => fs.FileExists(_devSettingsPath)).Returns(true);
+        _mockFileSystem.Setup(fs => fs.ReadAllText(_devSettingsPath)).Returns(settings);
+
+        string? writtenContent = null;
+        _mockFileSystem.Setup(fs => fs.WriteAllText(_devSettingsPath, It.IsAny<string>()))
+            .Callback<string, string>((_, content) => writtenContent = content);
+
+        var step = new UpdateAppSettingsStep(
+            NullLogger<UpdateAppSettingsStep>.Instance,
+            _mockFileSystem.Object,
+            Mock.Of<ITelemetryService>())
+        {
+            ProjectPath = _projectPath,
+            Username = "devuser",
+            TenantId = "new-tenant-id",
+            ClientId = "new-client-id",
+            Overwrite = true
+        };
+
+        // Act
+        bool result = await step.ExecuteAsync(_context, CancellationToken.None);
+
+        // Assert: Values from both sections are present
+        Assert.True(result);
+        Assert.NotNull(writtenContent);
+        
+        JsonNode? json = JsonNode.Parse(writtenContent);
+        Assert.NotNull(json);
+        Assert.Equal("https://login.microsoftonline.com/", json["AzureAd"]?["Instance"]?.ToString());
+        Assert.Equal("new-client-id", json["AzureAd"]?["ClientId"]?.ToString());
+        Assert.Equal("/custom-signout", json["AzureAd"]?["SignedOutCallbackPath"]?.ToString());
+        Assert.Equal("should-be-preserved", json["AzureAd"]?["ExtraProperty"]?.ToString());
+    }
+
     private sealed class TestLogger : ILogger<UpdateAppSettingsStep>
     {
         public List<string> InformationMessages { get; } = new();

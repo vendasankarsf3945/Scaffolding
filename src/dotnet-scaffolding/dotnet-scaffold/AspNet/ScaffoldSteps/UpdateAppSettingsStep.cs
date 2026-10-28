@@ -141,7 +141,7 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.ScaffoldSteps.Settings
                 var azureAdConfig = CreateAzureAdConfiguration(Username, TenantId, ClientId, Domain, Instance, CallbackPath);
                 bool removedLegacyDomain = RemoveLegacyUsernameDerivedDomain(developmentSettings, Username, Domain);
 
-                JsonNode? existingAzureAd = developmentSettings["AzureAd"];
+                JsonObject? existingAzureAd = GetAzureAdSection(developmentSettings);
 
                 if (!Overwrite)
                 {
@@ -153,39 +153,35 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.ScaffoldSteps.Settings
                     }
                 }
 
-                if (!Overwrite && existingAzureAd is not null && existingAzureAd is not JsonObject)
+                JsonNode? existingAzureAdNode = developmentSettings["AzureAd"];
+                if (!Overwrite && existingAzureAdNode is not null && existingAzureAdNode is not JsonObject)
                 {
                     _logger.LogError("Conflicting AzureAd value for key 'AzureAd' in appsettings.Development.json: the section is not a JSON object. Re-run with '--overwrite' to replace it.");
                     return Task.FromResult(false);
                 }
 
-                if (existingAzureAd is JsonObject existingAzureAdObjectForNoWrite &&
+                if (existingAzureAd is not null &&
                     !removedLegacyDomain &&
                     !HasFlatManagedAzureAdSettings(developmentSettings, azureAdConfig) &&
-                    HasMatchingManagedAzureAdSettings(existingAzureAdObjectForNoWrite, azureAdConfig))
+                    HasMatchingManagedAzureAdSettings(existingAzureAd, azureAdConfig))
                 {
                     _logger.LogInformation("No changes needed for AzureAd configuration in appsettings.Development.json.");
                     LogDevelopmentEnvironmentNotice();
                     return Task.FromResult(true);
                 }
 
-                JsonObject targetAzureAd = existingAzureAd switch
-                {
-                    JsonObject jsonObject => jsonObject,
-                    _ => new JsonObject()
-                };
+                JsonObject targetAzureAd = existingAzureAd ?? new JsonObject();
 
                 RemoveFlatManagedAzureAdSettings(developmentSettings, azureAdConfig);
+                RemoveAllCaseInsensitiveAzureAdKeys(developmentSettings);
 
                 foreach (var setting in azureAdConfig)
                 {
                     targetAzureAd[setting.Key] = setting.Value?.DeepClone();
                 }
 
-                if (existingAzureAd is not JsonObject)
-                {
-                    developmentSettings["AzureAd"] = targetAzureAd;
-                }
+                // Always set AzureAd to normalize the structure
+                developmentSettings["AzureAd"] = targetAzureAd;
 
                 var options = new JsonSerializerOptions { WriteIndented = true };
                 _fileSystem.WriteAllText(devSettingsPath, developmentSettings.ToJsonString(options));
@@ -253,15 +249,21 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.ScaffoldSteps.Settings
             string legacyDomain = $"{username}.onmicrosoft.com";
             bool removed = false;
 
-            if (developmentSettings["AzureAd"] is JsonObject existingAzureAd &&
+            JsonObject? existingAzureAd = GetAzureAdSection(developmentSettings);
+            if (existingAzureAd is not null &&
                 existingAzureAd["Domain"]?.ToString() == legacyDomain)
             {
                 removed = existingAzureAd.Remove("Domain");
             }
 
-            if (developmentSettings["AzureAd:Domain"]?.ToString() == legacyDomain)
+            // Remove flat-key legacy domain, case-insensitively
+            foreach (var kvp in developmentSettings.ToList())
             {
-                removed = developmentSettings.Remove("AzureAd:Domain") || removed;
+                if (kvp.Key.Equals("AzureAd:Domain", StringComparison.OrdinalIgnoreCase) &&
+                    kvp.Value?.ToString() == legacyDomain)
+                {
+                    removed = developmentSettings.Remove(kvp.Key) || removed;
+                }
             }
 
             return removed;
@@ -269,7 +271,7 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.ScaffoldSteps.Settings
 
         internal static string? GetFirstConflictingAzureAdKey(JsonObject developmentSettings, JsonObject generatedAzureAd)
         {
-            JsonObject? existingAzureAd = developmentSettings["AzureAd"] as JsonObject;
+            JsonObject? existingAzureAd = GetAzureAdSection(developmentSettings);
 
             foreach (var setting in generatedAzureAd)
             {
@@ -279,13 +281,40 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.ScaffoldSteps.Settings
                     return setting.Key;
                 }
 
-                JsonNode? flatValue = developmentSettings[$"AzureAd:{setting.Key}"];
+                JsonNode? flatValue = GetFlatAzureAdValue(developmentSettings, setting.Key);
                 if (IsConflictingValue(flatValue, setting.Value))
                 {
                     return setting.Key;
                 }
             }
 
+            return null;
+        }
+
+        internal static JsonObject? GetAzureAdSection(JsonObject developmentSettings)
+        {
+            // Handle case-insensitive section lookups to support both "AzureAd" and "azuread"
+            foreach (var kvp in developmentSettings)
+            {
+                if (kvp.Key.Equals("AzureAd", StringComparison.OrdinalIgnoreCase))
+                {
+                    return kvp.Value as JsonObject;
+                }
+            }
+            return null;
+        }
+
+        internal static JsonNode? GetFlatAzureAdValue(JsonObject developmentSettings, string key)
+        {
+            // Check for flat keys like "AzureAd:ClientId", case-insensitively
+            foreach (var kvp in developmentSettings)
+            {
+                if (kvp.Key.StartsWith("AzureAd:", StringComparison.OrdinalIgnoreCase) &&
+                    kvp.Key.EndsWith(key, StringComparison.OrdinalIgnoreCase))
+                {
+                    return kvp.Value;
+                }
+            }
             return null;
         }
 
@@ -316,7 +345,32 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.ScaffoldSteps.Settings
         {
             foreach (var setting in generatedAzureAd)
             {
-                developmentSettings.Remove($"AzureAd:{setting.Key}");
+                // Remove both exact case and case-insensitive variations
+                var keysToRemove = developmentSettings
+                    .Where(kvp => kvp.Key.Equals($"AzureAd:{setting.Key}", StringComparison.OrdinalIgnoreCase))
+                    .Select(kvp => kvp.Key)
+                    .ToList();
+                
+                foreach (var key in keysToRemove)
+                {
+                    developmentSettings.Remove(key);
+                }
+            }
+        }
+
+        private static void RemoveAllCaseInsensitiveAzureAdKeys(JsonObject developmentSettings)
+        {
+            // Remove all case-insensitive variations of AzureAd keys except the canonical one
+            // This handles split sections like {"AzureAd":{...}, "azuread":{...}}
+            var keysToRemove = developmentSettings
+                .Where(kvp => kvp.Key.Equals("AzureAd", StringComparison.OrdinalIgnoreCase) &&
+                              !kvp.Key.Equals("AzureAd", StringComparison.Ordinal))
+                .Select(kvp => kvp.Key)
+                .ToList();
+            
+            foreach (var key in keysToRemove)
+            {
+                developmentSettings.Remove(key);
             }
         }
 

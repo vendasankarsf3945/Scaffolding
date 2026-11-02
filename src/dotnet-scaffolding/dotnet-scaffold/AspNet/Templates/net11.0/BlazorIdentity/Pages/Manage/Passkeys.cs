@@ -50,8 +50,9 @@ if (!string.IsNullOrEmpty(Model.DbContextNamespace))
                     "           <td>\r\n                        @{\r\n                            var cre" +
                     "dentialId = Base64Url.EncodeToString(passkey.CredentialId);\r\n                   " +
                     "     }\r\n                        <form @formname=\"@($\"update-passkey-{credentialI" +
-                    "d}\")\" @onsubmit=\"UpdatePasskey\" method=\"post\">\r\n                            <div" +
-                    ">\r\n                                <input type=\"hidden\" name=\"CredentialId\" valu" +
+                    "d}\")\" @onsubmit=\"UpdatePasskey\" method=\"post\">\r\n                            <Anti" +
+                    "forgeryToken />\r\n                            <div>\r\n                           " +
+                    "     <input type=\"hidden\" name=\"CredentialId\" valu" +
                     "e=\"@credentialId\" />\r\n                                <button type=\"submit\" name" +
                     "=\"Action\" value=\"rename\" class=\"btn btn-primary\" title=\"Rename this passkey\">Ren" +
                     "ame</button>\r\n                                <button type=\"submit\" name=\"Action" +
@@ -59,8 +60,8 @@ if (!string.IsNullOrEmpty(Model.DbContextNamespace))
                     "ount\">Delete</button>\r\n                            </div>\r\n                     " +
                     "   </form>\r\n                    </td>\r\n                </tr>\r\n            }\r\n   " +
                     "     </tbody>\r\n    </table>\r\n}\r\nelse\r\n{\r\n    <p>No passkeys are registered.</p>\r" +
-                    "\n}\r\n\r\n<form @formname=\"add-passkey\" @onsubmit=\"AddPasskey\" method=\"post\">\r\n    @" +
-                    "if (currentPasskeys is { Count: >= MaxPasskeyCount })\r\n    {\r\n        <p class=\"" +
+                    "\n}\r\n\r\n<form @formname=\"add-passkey\" @onsubmit=\"AddPasskey\" method=\"post\">\r\n    " +
+                    "<AntiforgeryToken />\r\n    @if (currentPasskeys is { Count: >= MaxPasskeyCount })\r\n    {\r\n        <p class=\"" +
                     "text-danger\">You have reached the maximum number of allowed passkeys. Please del" +
                     "ete one before adding a new one.</p>\r\n    }\r\n    else\r\n    {\r\n        <PasskeySu" +
                     "bmit Operation=\"PasskeyOperation.Create\" Name=\"Input\" class=\"btn btn-primary\">Ad" +

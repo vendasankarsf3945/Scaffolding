@@ -44,7 +44,8 @@ if (!string.IsNullOrEmpty(Model.DbContextNamespace))
                     "ectManager RedirectManager\r\n\r\n<PageTitle>Manage email</PageTitle>\r\n\r\n<h3>Manage " +
                     "email</h3>\r\n\r\n<StatusMessage Message=\"@message\"/>\r\n<div class=\"row\">\r\n    <div c" +
                     "lass=\"col-xl-6\">\r\n        <form @onsubmit=\"OnSendEmailVerificationAsync\" @formna" +
-                    "me=\"send-verification\" id=\"send-verification-form\" method=\"post\">\r\n        </for" +
+                    "me=\"send-verification\" id=\"send-verification-form\" method=\"post\">\r\n            <" +
+                    "AntiforgeryToken />\r\n        </for" +
                     "m>\r\n        <EditForm Model=\"Input\" FormName=\"change-email\" OnValidSubmit=\"OnVal" +
                     "idSubmitAsync\" method=\"post\">\r\n            <DataAnnotationsValidator />\r\n       " +
                     "     <div role=\"alert\" aria-atomic=\"true\">\r\n                <ValidationSummary c" +

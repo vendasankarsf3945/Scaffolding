@@ -48,7 +48,8 @@ if (!string.IsNullOrEmpty(Model.DbContextNamespace))
                     "   </p>\r\n    <p>\r\n        This process disables 2FA until you verify your authen" +
                     "ticator app.\r\n        If you do not complete your authenticator app configuratio" +
                     "n you may lose access to your account.\r\n    </p>\r\n</div>\r\n<div>\r\n    <form @form" +
-                    "name=\"reset-authenticator\" @onsubmit=\"OnSubmitAsync\" method=\"post\">\r\n        <bu" +
+                    "name=\"reset-authenticator\" @onsubmit=\"OnSubmitAsync\" method=\"post\">\r\n        <An" +
+                    "tiforgeryToken />\r\n        <bu" +
                     "tton class=\"btn btn-danger\" type=\"submit\">Reset authenticator key</button>\r\n    " +
                     "</form>\r\n</div>\r\n\r\n@code {\r\n    private string? message;\r\n\r\n    [CascadingParame" +
                     "ter]\r\n    private HttpContext HttpContext { get; set; } = default!;\r\n\r\n    [Supp" +

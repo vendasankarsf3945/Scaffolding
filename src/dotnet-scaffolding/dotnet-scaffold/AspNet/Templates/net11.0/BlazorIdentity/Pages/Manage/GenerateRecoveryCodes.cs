@@ -65,6 +65,7 @@ else
     </div>
     <div>
         <form @formname=""generate-recovery-codes"" @onsubmit=""OnSubmitAsync"" method=""post"">
+            <AntiforgeryToken />
             <button class=""btn btn-danger"" type=""submit"">Generate Recovery Codes</button>
         </form>
     </div>

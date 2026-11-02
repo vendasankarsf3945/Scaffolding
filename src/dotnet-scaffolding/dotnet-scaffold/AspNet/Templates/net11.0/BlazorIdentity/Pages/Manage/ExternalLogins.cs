@@ -49,7 +49,8 @@ if (!string.IsNullOrEmpty(Model.DbContextNamespace))
                     "Name</td>\r\n                    <td>\r\n                        @if (showRemoveButt" +
                     "on)\r\n                        {\r\n                            <form @formname=\"@($" +
                     "\"remove-login-{login.LoginProvider}\")\" @onsubmit=\"OnSubmitAsync\" method=\"post\">\r" +
-                    "\n                                <div>\r\n                                    <inp" +
+                    "\n                                <AntiforgeryToken />\r\n                         " +
+                    "       <div>\r\n                                    <inp" +
                     "ut type=\"hidden\" name=\"@nameof(LoginProvider)\" value=\"@login.LoginProvider\" />\r\n" +
                     "                                    <input type=\"hidden\" name=\"@nameof(ProviderK" +
                     "ey)\" value=\"@login.ProviderKey\" />\r\n                                    <button " +
@@ -61,7 +62,7 @@ if (!string.IsNullOrEmpty(Model.DbContextNamespace))
                     ">\r\n            }\r\n        </tbody>\r\n    </table>\r\n}\r\n@if (otherLogins?.Count > 0" +
                     ")\r\n{\r\n    <h4>Add another service to log in.</h4>\r\n    <hr />\r\n    <form class=\"" +
                     "form-horizontal\" action=\"Account/Manage/LinkExternalLogin\" method=\"post\">\r\n     " +
-                    "   <div>\r\n            <p>\r\n                @foreach (var provider in otherLogins" +
+                    "   <AntiforgeryToken />\r\n        <div>\r\n            <p>\r\n                @foreach (var provider in otherLogins" +
                     ")\r\n                {\r\n                    <button type=\"submit\" class=\"btn btn-p" +
                     "rimary\" name=\"Provider\" value=\"@provider.Name\" title=\"Log in using your @provide" +
                     "r.DisplayName account\">\r\n                        @provider.DisplayName\r\n        " +

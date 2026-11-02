@@ -57,7 +57,7 @@ if (!string.IsNullOrEmpty(Model.DbContextNamespace))
                     "w set of recovery codes</a>.</p>\r\n            </div>\r\n        }\r\n\r\n        if (i" +
                     "sMachineRemembered)\r\n        {\r\n            <form style=\"display: inline-block\" " +
                     "@formname=\"forget-browser\" @onsubmit=\"OnSubmitForgetBrowserAsync\" method=\"post\">" +
-                    "\r\n                <button type=\"submit\" class=\"btn btn-primary\">Forget this brow" +
+                    "\r\n                <AntiforgeryToken />\r\n                <button type=\"submit\" class=\"btn btn-primary\">Forget this brow" +
                     "ser</button>\r\n            </form>\r\n        }\r\n\r\n        <a href=\"Account/Manage/" +
                     "Disable2fa\" class=\"btn btn-primary\">Disable 2FA</a>\r\n        <a href=\"Account/Ma" +
                     "nage/GenerateRecoveryCodes\" class=\"btn btn-primary\">Reset recovery codes</a>\r\n  " +

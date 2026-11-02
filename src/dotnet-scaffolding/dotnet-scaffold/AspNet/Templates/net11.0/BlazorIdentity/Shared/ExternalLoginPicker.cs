@@ -55,6 +55,7 @@ else
 {
     <form class=""form-horizontal"" action=""Account/PerformExternalLogin"" method=""post"">
         <div>
+            <AntiforgeryToken />
             <input type=""hidden"" name=""ReturnUrl"" value=""@ReturnUrl"" />
             <p>
                 @foreach (var provider in externalLogins)

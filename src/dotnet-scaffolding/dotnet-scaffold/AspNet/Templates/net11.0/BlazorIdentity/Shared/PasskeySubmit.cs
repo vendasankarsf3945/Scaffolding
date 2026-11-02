@@ -25,14 +25,24 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.Templates.net11.BlazorIdentity.
         /// </summary>
         public virtual string TransformText()
         {
-            this.Write(@"<button type=""submit"" name=""__passkeySubmit"" @attributes=""AdditionalAttributes"" formnovalidate>@ChildContent</button>
+            this.Write(@"@using Microsoft.AspNetCore.Antiforgery
+@inject IServiceProvider Services
+
+<button type=""submit"" name=""__passkeySubmit"" @attributes=""AdditionalAttributes"" formnovalidate>@ChildContent</button>
 <passkey-submit
     operation=""@Operation""
     name=""@Name""
-    email-name=""@EmailName"">
+    email-name=""@EmailName""
+    request-token-name=""@tokens?.HeaderName""
+    request-token-value=""@tokens?.RequestToken"">
 </passkey-submit>
 
 @code {
+    private AntiforgeryTokenSet? tokens;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
     [Parameter]
     [EditorRequired]
     public PasskeyOperation Operation { get; set; }
@@ -49,6 +59,11 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.Templates.net11.BlazorIdentity.
 
     [Parameter(CaptureUnmatchedValues = true)]
     public IDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    protected override void OnInitialized()
+    {
+        tokens = Services.GetService<IAntiforgery>()?.GetAndStoreTokens(HttpContext);
+    }
 }
 ");
             return this.GenerationEnvironment.ToString();

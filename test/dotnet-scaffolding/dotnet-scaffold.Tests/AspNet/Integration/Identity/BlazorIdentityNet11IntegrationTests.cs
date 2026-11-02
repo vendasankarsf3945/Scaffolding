@@ -107,6 +107,26 @@ public class BlazorIdentityNet11IntegrationTests : BlazorIdentityIntegrationTest
         Assert.Contains("[SupplyParameterFromTempData(Name = IdentityRedirectManager.StatusMessageKey)]", passkeysContent);
         Assert.Contains("message = IdentityStatusMessage;", passkeysContent);
         Assert.Contains("IdentityStatusMessage = \"Your passkey was added successfully.\";", passkeysContent);
+        Assert.Equal(2, CountOccurrences(passkeysContent, "<AntiforgeryToken />"));
+
+        var antiforgeryProtectedManageForms = new[]
+        {
+            ("Disable2fa.razor", 1),
+            ("Email.razor", 1),
+            ("ExternalLogins.razor", 2),
+            ("GenerateRecoveryCodes.razor", 1),
+            ("PersonalData.razor", 1),
+            ("ResetAuthenticator.razor", 1),
+            ("TwoFactorAuthentication.razor", 1),
+        };
+        foreach (var (fileName, expectedTokenCount) in antiforgeryProtectedManageForms)
+        {
+            var content = File.ReadAllText(Path.Combine(accountPagesDir, "Manage", fileName));
+            Assert.Equal(expectedTokenCount, CountOccurrences(content, "<AntiforgeryToken />"));
+        }
+
+        var externalLoginPickerContent = File.ReadAllText(Path.Combine(sharedDir, "ExternalLoginPicker.razor"));
+        Assert.Equal(1, CountOccurrences(externalLoginPickerContent, "<AntiforgeryToken />"));
 
         var endpointContent = File.ReadAllText(Path.Combine(
             _testProjectDir, "Components", "Account", "IdentityComponentsEndpointRouteBuilderExtensions.cs"));
@@ -116,9 +136,13 @@ public class BlazorIdentityNet11IntegrationTests : BlazorIdentityIntegrationTest
 
         var passkeySubmitContent = File.ReadAllText(Path.Combine(sharedDir, "PasskeySubmit.razor"));
         Assert.Contains("formnovalidate", passkeySubmitContent);
-        Assert.DoesNotContain("<AntiforgeryToken", passkeySubmitContent);
+        Assert.Contains("GetAndStoreTokens(HttpContext)", passkeySubmitContent);
+        Assert.Contains("request-token-name=\"@tokens?.HeaderName\"", passkeySubmitContent);
+        Assert.Contains("request-token-value=\"@tokens?.RequestToken\"", passkeySubmitContent);
         var passkeyScriptContent = File.ReadAllText(Path.Combine(sharedDir, "PasskeySubmit.razor.js"));
-        Assert.DoesNotContain("RequestVerificationToken", passkeyScriptContent);
+        Assert.Contains("[this.attrs.requestTokenName]: this.attrs.requestTokenValue", passkeyScriptContent);
+        Assert.Contains("createCredential(headers, signal)", passkeyScriptContent);
+        Assert.Contains("requestCredential(email, mediation, headers, signal)", passkeyScriptContent);
 
         var programContent = File.ReadAllText(Path.Combine(_testProjectDir, "Program.cs"));
         Assert.Contains("TestDbContext", programContent);
@@ -132,6 +156,10 @@ public class BlazorIdentityNet11IntegrationTests : BlazorIdentityIntegrationTest
         Assert.False(File.Exists(Path.Combine(
             _testProjectDir, "Components", "Account", "IdentityRevalidatingAuthenticationStateProvider.cs")));
         Assert.Contains("app.MapAdditionalIdentityEndpoints();", programContent);
+        Assert.Equal(1, CountOccurrences(programContent, "app.UseAntiforgery();"));
+        Assert.True(
+            programContent.IndexOf("app.UseAntiforgery();", System.StringComparison.Ordinal) <
+            programContent.IndexOf("app.MapStaticAssets();", System.StringComparison.Ordinal));
 
         var navMenuContent = File.ReadAllText(navMenuPath);
         Assert.Contains("<AuthorizeView>", navMenuContent);
@@ -140,7 +168,7 @@ public class BlazorIdentityNet11IntegrationTests : BlazorIdentityIntegrationTest
         Assert.Contains("action=\"Account/Logout\"", navMenuContent);
         Assert.Contains("href=\"weather\"", navMenuContent);
         Assert.DoesNotContain("<nav-menu>", navMenuContent);
-        Assert.DoesNotContain("<AntiforgeryToken />", navMenuContent);
+        Assert.Equal(1, CountOccurrences(navMenuContent, "<AntiforgeryToken />"));
 
         // Assert no NuGet errors during scaffolding
         Assert.False(cliOutput.Contains("error: NU"),
@@ -161,7 +189,9 @@ public class BlazorIdentityNet11IntegrationTests : BlazorIdentityIntegrationTest
 
         Assert.True(overwriteRun.ExitCode == 0, $"Overwrite scaffold should succeed.\nOutput: {overwriteRun.Output}\nError: {overwriteRun.Error}");
         Assert.DoesNotContain("// stale", File.ReadAllText(passkeyScriptPath));
-        Assert.Contains("app.MapAdditionalIdentityEndpoints();", File.ReadAllText(programPath));
+        var overwrittenProgram = File.ReadAllText(programPath);
+        Assert.Contains("app.MapAdditionalIdentityEndpoints();", overwrittenProgram);
+        Assert.Equal(1, CountOccurrences(overwrittenProgram, "app.UseAntiforgery();"));
         Assert.Equal(1, CountOccurrences(File.ReadAllText(navMenuPath), "<AuthorizeView>"));
         var navMenuCss = File.ReadAllText(Path.Combine(_testProjectDir, "Components", "Layout", "NavMenu.razor.css"));
         Assert.Equal(1, CountOccurrences(navMenuCss, ".bi-arrow-bar-left-nav-menu {"));

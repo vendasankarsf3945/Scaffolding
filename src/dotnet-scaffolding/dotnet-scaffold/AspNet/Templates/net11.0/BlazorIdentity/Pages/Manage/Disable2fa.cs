@@ -57,6 +57,7 @@ if (!string.IsNullOrEmpty(Model.DbContextNamespace))
 
 <div>
     <form @formname=""disable-2fa"" @onsubmit=""OnSubmitAsync"" method=""post"">
+        <AntiforgeryToken />
         <button class=""btn btn-danger"" type=""submit"">Disable 2FA</button>
     </form>
 </div>

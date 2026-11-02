@@ -13,6 +13,17 @@
               }
             },
             {
+              "InsertBefore": [
+                "app.MapStaticAssets()",
+                "app.MapRazorComponents<App>()"
+              ],
+              "CheckBlock": "app.UseAntiforgery()",
+              "Block": "app.UseAntiforgery()",
+              "LeadingTrivia": {
+                "Newline": true
+              }
+            },
+            {
               "InsertBefore": [ "var app = WebApplication.CreateBuilder.Build();" ],
               "Block": "WebApplication.CreateBuilder.Services.AddCascadingAuthenticationState()",
               "LeadingTrivia": {
@@ -213,6 +224,13 @@
             "</nav>"
           ],
           "FileBlock": "..\\..\\Shared\\CodeBlocks\\IdentityNavMenu.razor"
+        },
+        {
+          "ReplaceSnippet": [ "<form action=\"Account/Logout\" method=\"post\">" ],
+          "MultiLineBlock": [
+            "<form action=\"Account/Logout\" method=\"post\">",
+            "                            <AntiforgeryToken />"
+          ]
         },
         {
           "CheckBlock": "OnInitialized()",

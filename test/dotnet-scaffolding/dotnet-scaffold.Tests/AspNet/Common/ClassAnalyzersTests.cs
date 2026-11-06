@@ -406,6 +406,73 @@ namespace MyApp.Data
     }
 
     [Fact]
+    public void GetDbContextInfo_WithExistingPluralDbSet_UsesExistingProperty()
+    {
+        string code = """
+            using Microsoft.EntityFrameworkCore;
+            namespace MyApp.Models
+            {
+                public class BloggingContext : DbContext
+                {
+                    public DbSet<Blog> Blogs { get; set; } = null!;
+                }
+
+                public class Blog { public int BlogId { get; set; } }
+            }
+            """;
+        CSharpCompilation compilation = CreateCompilation(code);
+        Assert.DoesNotContain(compilation.GetDiagnostics(), diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        INamedTypeSymbol dbContextSymbol = GetTypeSymbol(compilation, "BloggingContext");
+        ModelInfo modelInfo = new()
+        {
+            ModelTypeName = "Blog",
+            ModelFullName = "MyApp.Models.Blog"
+        };
+
+        DbContextInfo result = ClassAnalyzers.GetDbContextInfo(
+            "TestProject.csproj", dbContextSymbol, "BloggingContext", "SqlServer", modelInfo);
+
+        Assert.Equal("Blogs", result.EntitySetVariableName);
+        Assert.Null(result.NewDbSetStatement);
+    }
+
+    [Fact]
+    public void GetDbContextInfo_WithDbSetForDifferentBlogType_DoesNotReuseProperty()
+    {
+        string code = """
+            using Microsoft.EntityFrameworkCore;
+            namespace MyApp.Models
+            {
+                public class BloggingContext : DbContext
+                {
+                    public DbSet<Blog> Blogs { get; set; } = null!;
+                }
+
+                public class Blog { public int BlogId { get; set; } }
+            }
+
+            namespace Other.Models
+            {
+                public class Blog { public int BlogId { get; set; } }
+            }
+            """;
+        CSharpCompilation compilation = CreateCompilation(code);
+        Assert.DoesNotContain(compilation.GetDiagnostics(), diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        INamedTypeSymbol dbContextSymbol = GetTypeSymbol(compilation, "BloggingContext");
+        ModelInfo modelInfo = new()
+        {
+            ModelTypeName = "Blog",
+            ModelFullName = "Other.Models.Blog"
+        };
+
+        DbContextInfo result = ClassAnalyzers.GetDbContextInfo(
+            "TestProject.csproj", dbContextSymbol, "BloggingContext", "SqlServer", modelInfo);
+
+        Assert.Equal("Blog", result.EntitySetVariableName);
+        Assert.Contains("DbSet<Other.Models.Blog> Blog", result.NewDbSetStatement);
+    }
+
+    [Fact]
     public void GetDbContextInfo_WithExistingDbContext_NullModelInfo_DoesNotPopulateNewDbSetStatement()
     {
         // Arrange

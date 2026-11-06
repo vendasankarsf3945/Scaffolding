@@ -12,7 +12,6 @@
     string entitySetName = Model.DbContextInfo.EntitySetVariableName ?? modelName;
     string modelNamespace = Model.ModelInfo.ModelNamespace;
     string primaryKeyName = Model.ModelInfo.PrimaryKeyName;
-    string primaryKeyNameLowerInv = primaryKeyName.ToLowerInvariant();
     string primaryKeyTypeName = Model.ModelInfo.PrimaryKeyTypeName;
 #>
 using Microsoft.AspNetCore.Mvc;
@@ -51,14 +50,14 @@ public class DeleteModel : PageModel
     [BindProperty]
     public <#= modelName #> <#= modelNameCapitalized #> { get; set; } = default!;
 
-    public async Task<IActionResult> OnGetAsync(<#= primaryKeyTypeName #>? <#= primaryKeyNameLowerInv #>)
+    public async Task<IActionResult> OnGetAsync(<#= primaryKeyTypeName #>? id)
     {
-        if (<#= primaryKeyNameLowerInv #> is null)
+        if (id is null)
         {
             return NotFound();
         }
 
-        var <#= modelNameLowerVariant #> = await _context.<#= entitySetName #>.FirstOrDefaultAsync(m => m.<#= primaryKeyName #> == <#= primaryKeyNameLowerInv #>);
+        var <#= modelNameLowerVariant #> = await _context.<#= entitySetName #>.FirstOrDefaultAsync(m => m.<#= primaryKeyName #> == id);
         if (<#= modelNameLowerVariant #> is null)
         {
             return NotFound();
@@ -71,14 +70,14 @@ public class DeleteModel : PageModel
         return Page();
     }
 
-    public async Task<IActionResult> OnPostAsync(<#= primaryKeyTypeName #>? <#= primaryKeyNameLowerInv #>)
+    public async Task<IActionResult> OnPostAsync(<#= primaryKeyTypeName #>? id)
     {
-        if (<#= primaryKeyNameLowerInv #> is null)
+        if (id is null)
         {
             return NotFound();
         }
 
-        var <#= modelNameLowerVariant #> = await _context.<#= entitySetName #>.FindAsync(<#= primaryKeyNameLowerInv #>);
+        var <#= modelNameLowerVariant #> = await _context.<#= entitySetName #>.FindAsync(id);
         if (<#= modelNameLowerVariant #> != null)
         {
             <#= modelNameCapitalized #> = <#= modelNameLowerVariant #>;

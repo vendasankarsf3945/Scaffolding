@@ -34,7 +34,6 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.Templates.net10.RazorPages
     string entitySetName = Model.DbContextInfo.EntitySetVariableName ?? modelName;
     string modelNamespace = Model.ModelInfo.ModelNamespace;
     string primaryKeyName = Model.ModelInfo.PrimaryKeyName;
-    string primaryKeyNameLowerInv = primaryKeyName.ToLowerInvariant();
     string primaryKeyTypeName = Model.ModelInfo.PrimaryKeyTypeName;
 
             this.Write("using Microsoft.AspNetCore.Mvc;\r\nusing Microsoft.AspNetCore.Mvc.RazorPages;\r\nusin" +
@@ -79,9 +78,9 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.Templates.net10.RazorPages
             this.Write(" { get; set; } = default!;\r\n\r\n    public async Task<IActionResult> OnGetAsync(");
             this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyTypeName));
             this.Write("? ");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write("id");
             this.Write(")\r\n    {\r\n        if (");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write("id");
             this.Write(" is null)\r\n        {\r\n            return NotFound();\r\n        }\r\n\r\n        var ");
             this.Write(this.ToStringHelper.ToStringWithCulture(modelNameLowerVariant));
             this.Write(" = await _context.");
@@ -89,7 +88,7 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.Templates.net10.RazorPages
             this.Write(".FirstOrDefaultAsync(m => m.");
             this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyName));
             this.Write(" == ");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write("id");
             this.Write(");\r\n        if (");
             this.Write(this.ToStringHelper.ToStringWithCulture(modelNameLowerVariant));
             this.Write(" is null)\r\n        {\r\n            return NotFound();\r\n        }\r\n        else\r\n  " +
